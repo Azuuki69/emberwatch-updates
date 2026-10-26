@@ -1,0 +1,47 @@
+name: Build iPhone test app
+on:
+  workflow_dispatch:
+    inputs:
+      game_release:
+        description: Game release tag, or latest
+        default: latest
+        required: true
+permissions:
+  contents: write
+concurrency:
+  group: iphone-test-build
+  cancel-in-progress: false
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GAME_RELEASE: ${{ inputs.game_release }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare verified game and native shell
+        run: node build-ios/prepare.mjs
+      - name: Compile iPhone device app
+        run: |
+          xcodebuild -version
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' build > device-build.log 2>&1 || { tail -120 device-build.log; exit 1; }
+          mkdir -p output/Payload
+          cp -R build/device/Build/Products/Debug-iphoneos/App.app output/Payload/Emberwatch.app
+          (cd output && zip -qry Emberwatch-iOS-unsigned.ipa Payload)
+      - name: Compile and launch iPhone simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=NO build > simulator-build.log 2>&1 || { tail -120 simulator-build.log; exit 1; }
+          DEVICE_ID=$(xcrun simctl list devices available -j | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const d=Object.values(JSON.parse(s).devices).flat().find(d=>d.name.startsWith("iPhone")&&d.isAvailable);if(!d)process.exit(1);console.log(d.udid)})')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" build/simulator/Build/Products/Debug-iphonesimulator/App.app
+          xcrun simctl launch "$DEVICE_ID" com.emberwatch.game
+          sleep 12
+          xcrun simctl io "$DEVICE_ID" screenshot output/Emberwatch-iOS-simulator-preview.png
+          (cd build/simulator/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/output/Emberwatch-iOS-Simulator-Mac-only.zip" App.app)
+      - name: Publish clearly labeled iOS test downloads
+        run: |
+          cp build-ios/iPhone-testing.md output/iPhone-testing.md
+          RELEASE_TAG=$(cat output/release-tag.txt)
+          gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber output/Emberwatch-iOS-unsigned.ipa output/Emberwatch-iOS-Simulator-Mac-only.zip output/Emberwatch-iOS-simulator-preview.png output/iPhone-testing.md

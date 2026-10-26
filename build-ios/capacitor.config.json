@@ -1,0 +1,27 @@
+{
+  "appId": "com.emberwatch.game",
+  "appName": "Emberwatch",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#132e2b",
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#132e2b"
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "updateUrl": "",
+      "statsUrl": "",
+      "channelUrl": "",
+      "appReadyTimeout": 30000,
+      "autoDeleteFailed": true,
+      "autoDeletePrevious": false
+    }
+  }
+}
