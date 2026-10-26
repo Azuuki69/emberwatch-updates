@@ -44,4 +44,6 @@ jobs:
         run: |
           cp build-ios/iPhone-testing.md output/iPhone-testing.md
           RELEASE_TAG=$(cat output/release-tag.txt)
+          gh release view ios-test --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create ios-test --repo "$GITHUB_REPOSITORY" --prerelease --latest=false --title 'iPhone test package — signing required' --notes-file build-ios/iPhone-testing.md
+          gh release upload ios-test --repo "$GITHUB_REPOSITORY" --clobber output/Emberwatch-iOS-unsigned.ipa output/Emberwatch-iOS-Simulator-Mac-only.zip output/Emberwatch-iOS-simulator-preview.png output/iPhone-testing.md
           gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber output/Emberwatch-iOS-unsigned.ipa output/Emberwatch-iOS-Simulator-Mac-only.zip output/Emberwatch-iOS-simulator-preview.png output/iPhone-testing.md
