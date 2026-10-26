@@ -1,0 +1,36 @@
+name: Diagnose iPhone startup
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  diagnose:
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect and launch the compiled simulator package
+        run: |
+          gh release download ios-test --repo "$GITHUB_REPOSITORY" --pattern Emberwatch-iOS-Simulator-Mac-only.zip
+          unzip -q Emberwatch-iOS-Simulator-Mac-only.zip -d test-app
+          mkdir -p diagnostics
+          file test-app/App.app/App | tee diagnostics/binary.txt
+          plutil -p test-app/App.app/Info.plist | tee diagnostics/plist.txt
+          codesign --verify --deep --strict test-app/App.app 2>&1 | tee diagnostics/signature.txt || true
+          otool -L test-app/App.app/App | tee diagnostics/libraries.txt
+          DEVICE_ID=$(xcrun simctl list devices available -j | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>console.log(Object.values(JSON.parse(s).devices).flat().find(d=>d.name.startsWith("iPhone")&&d.isAvailable).udid))')
+          xcrun simctl boot "$DEVICE_ID" || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" test-app/App.app
+          xcrun simctl spawn "$DEVICE_ID" log stream --style compact --level debug --predicate 'process == "App" OR eventMessage CONTAINS "com.emberwatch.game"' > diagnostics/native-startup.txt 2>&1 &
+          xcrun simctl launch --terminate-running-process "$DEVICE_ID" com.emberwatch.game | tee diagnostics/launch.txt
+          sleep 30
+          xcrun simctl io "$DEVICE_ID" screenshot diagnostics/startup.png
+          xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -i emberwatch > diagnostics/process.txt || true
+          find "$HOME/Library/Logs/DiagnosticReports" "$HOME/Library/Developer/CoreSimulator/Devices/$DEVICE_ID/data/Library/Logs" -name '*.ips' -print -exec cat {} \; > diagnostics/crash-reports.txt 2>/dev/null || true
+          tail -180 diagnostics/native-startup.txt
+          cat diagnostics/process.txt
+          tail -160 diagnostics/crash-reports.txt
+          (cd diagnostics && zip -qry ../iOS-startup-diagnostics.zip .)
+          gh release upload ios-test --repo "$GITHUB_REPOSITORY" --clobber iOS-startup-diagnostics.zip
