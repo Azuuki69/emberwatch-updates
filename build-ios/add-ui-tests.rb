@@ -8,6 +8,7 @@ project.root_object.attributes['TargetAttributes'] ||= {}
 project.root_object.attributes['TargetAttributes'][target.uuid] = {'TestTargetID' => app.uuid}
 target.build_configurations.each do |config|
   config.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
+  config.build_settings['PRODUCT_NAME'] = 'EmberwatchUITests'
   config.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.emberwatch.game.uitests'
   config.build_settings['TEST_TARGET_NAME'] = 'App'
   config.build_settings['SWIFT_VERSION'] = '5.0'

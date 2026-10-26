@@ -1,6 +1,11 @@
 import XCTest
 
 final class EmberwatchUITests: XCTestCase {
+    private func scrollPage(_ app: XCUIApplication) {
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.8))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.2))
+        start.press(forDuration: 0.05, thenDragTo: end)
+    }
     func testWelcomeAndClaim() throws {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "com.emberwatch.game")
@@ -16,14 +21,14 @@ final class EmberwatchUITests: XCTestCase {
         XCTAssertTrue(landmark.waitForExistence(timeout: 30))
         for _ in 0..<5 {
             if landmark.isHittable { break }
-            app.swipeUp()
+            scrollPage(app)
         }
         landmark.tap()
         let claim = app.webViews.buttons["Raise your banner"]
         XCTAssertTrue(claim.waitForExistence(timeout: 15))
         for _ in 0..<5 {
             if claim.isHittable { break }
-            app.swipeUp()
+            scrollPage(app)
         }
         claim.tap()
         let settlements = app.webViews.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Settlements")).firstMatch

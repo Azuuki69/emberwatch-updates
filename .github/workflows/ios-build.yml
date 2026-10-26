@@ -31,12 +31,12 @@ jobs:
           (cd output && zip -qry Emberwatch-iOS-unsigned.ipa Payload)
       - name: Compile and launch iPhone simulator
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build > simulator-build.log 2>&1 || { tail -120 simulator-build.log; exit 1; }
           DEVICE_ID=$(xcrun simctl list devices available -j | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const d=Object.values(JSON.parse(s).devices).flat().find(d=>d.name.startsWith("iPhone")&&d.isAvailable);if(!d)process.exit(1);console.log(d.udid)})')
+          ruby build-ios/add-ui-tests.rb
+          xcodebuild -project ios/App/App.xcodeproj -scheme EmberwatchValidation -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build-for-testing > simulator-build.log 2>&1 || { tail -120 simulator-build.log; exit 1; }
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
-          ruby build-ios/add-ui-tests.rb
-          if ! xcodebuild -project ios/App/App.xcodeproj -scheme EmberwatchValidation -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator -resultBundlePath build/validation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > ui-test.log 2>&1; then
+          if ! xcodebuild -project ios/App/App.xcodeproj -scheme EmberwatchValidation -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator -resultBundlePath build/validation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building > ui-test.log 2>&1; then
             tail -180 ui-test.log
             xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "App"' | tail -120
             exit 1
