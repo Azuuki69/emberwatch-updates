@@ -35,18 +35,15 @@ jobs:
           DEVICE_ID=$(xcrun simctl list devices available -j | node -e 'let s="";process.stdin.on("data",c=>s+=c);process.stdin.on("end",()=>{const d=Object.values(JSON.parse(s).devices).flat().find(d=>d.name.startsWith("iPhone")&&d.isAvailable);if(!d)process.exit(1);console.log(d.udid)})')
           xcrun simctl boot "$DEVICE_ID" || true
           xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" build/simulator/Build/Products/Debug-iphonesimulator/App.app
-          xcrun simctl launch --console "$DEVICE_ID" com.emberwatch.game > simulator-launch.log 2>&1 &
-          LAUNCH_PID=$!
-          sleep 12
-          if ! kill -0 "$LAUNCH_PID" 2>/dev/null; then
-            cat simulator-launch.log
-            xcrun simctl spawn "$DEVICE_ID" log show --last 2m --style compact --predicate 'process == "App"' | tail -120
-            find "$HOME/Library/Logs/DiagnosticReports" -name 'App-*.ips' -maxdepth 1 -exec tail -120 {} \;
+          ruby build-ios/add-ui-tests.rb
+          if ! xcodebuild -project ios/App/App.xcodeproj -scheme EmberwatchValidation -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath build/simulator -resultBundlePath build/validation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test > ui-test.log 2>&1; then
+            tail -180 ui-test.log
+            xcrun simctl spawn "$DEVICE_ID" log show --last 3m --style compact --predicate 'process == "App"' | tail -120
             exit 1
           fi
-          cat simulator-launch.log
-          xcrun simctl io "$DEVICE_ID" screenshot output/Emberwatch-iOS-simulator-preview.png
+          tail -40 ui-test.log
+          xcrun xcresulttool export attachments --path build/validation.xcresult --output-path output/ios-test-screenshots
+          find output/ios-test-screenshots -name '*.png' -print | head -1 | xargs -I{} cp '{}' output/Emberwatch-iOS-simulator-preview.png
           (cd build/simulator/Build/Products/Debug-iphonesimulator && zip -qry "$GITHUB_WORKSPACE/output/Emberwatch-iOS-Simulator-Mac-only.zip" App.app)
       - name: Publish clearly labeled iOS test downloads
         run: |
